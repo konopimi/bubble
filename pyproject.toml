@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "rts"
+version = "0.1.0"
+description = ""
+authors = ["Miguel Pinto <konopimi@hotmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+numpy = "^2.2.0"
+esper = "^3.3"
+pygame-ce = "^2.5.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+dev = "rts.game:main"
+watch = "rts.watch:main"
