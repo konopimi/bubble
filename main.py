@@ -7,12 +7,14 @@ from typing import Callable
 import const
 import esper
 import pygame
+import asyncio
 
 
 @dataclass
 class Transform:
     position: tuple
     speed: int
+    scale: int=1
 
 
 @dataclass
@@ -25,19 +27,21 @@ class Attacker:
     pass
 
 
-@dataclass
-class Goal:
-    pass
 
 
 @dataclass
 class Attacking:
     pass
 
+@dataclass
+class Goal:
+    pass
 
 @dataclass
 class Goaling:
-    pass
+    bColor:tuple
+    onlyText:bool
+    amount:int
 
 
 @dataclass
@@ -53,12 +57,24 @@ class Button:
     #     "pressed": "#333333",
     # }
 
+groserias=[
+    "%&$#$%##$ D: ","%&$ D: #$%##$ ",
+    "$%# D:  %&$!#","!$#%&$ D: #$% ",
+    "!# D: $%& $#$","#!$ D: #$% %&$",
+    "$%#$%&$!# D: ","$% D: # #!$ %$",
+           ]
 
 FINGER_ATTACK_EVENT = pygame.USEREVENT + 1
+MEAW_EVENT = pygame.USEREVENT + 2
+FUCK_U_EVENT = pygame.USEREVENT + 3
+FUCK_U2_EVENT = pygame.USEREVENT + 4
+DOGO_EVENT = pygame.USEREVENT + 5
 
 
 screen = pygame.display.set_mode((const.WIDTH, const.HEIGHT), pygame.HWSURFACE | pygame.DOUBLEBUF)
 
+groseria = pygame.transform.scale(pygame.image.load("assets/groseria.png").convert_alpha(), (200, 60))
+bubble = pygame.transform.scale(pygame.image.load("assets/bubble.png").convert_alpha(), (60, 60))
 splash_bg = pygame.transform.scale(pygame.image.load("assets/splash_bg.jpeg"), (const.WIDTH * 1.3, const.HEIGHT * 1.3))
 splash_txt = pygame.transform.scale(pygame.image.load("assets/splash_txt.png").convert_alpha(), (const.WIDTH, const.HEIGHT))
 splash_txt.set_alpha(220)
@@ -67,6 +83,7 @@ splash_fg.set_alpha(200)
 splash_surface = pygame.Surface((const.WIDTH, const.HEIGHT), pygame.SRCALPHA)
 
 grass = pygame.transform.scale(pygame.image.load("assets/grass.png").convert_alpha(), (const.WIDTH*1.6, 200))
+dogo = pygame.transform.scale(pygame.image.load("assets/dogo.png").convert_alpha(), (150, 250))
 head_size=(200,200)
 kid_size=(280,320)
 kid_surface = pygame.Surface(kid_size, pygame.SRCALPHA)
@@ -74,6 +91,7 @@ kid_surface = pygame.Surface(kid_size, pygame.SRCALPHA)
 kid_head_surface = pygame.Surface(head_size, pygame.SRCALPHA)
 kid_head = pygame.transform.scale(pygame.image.load("assets/kid_head.png"), head_size)
 tears= pygame.transform.scale(pygame.image.load("assets/tears.png"), (300,100))
+mom_dad= pygame.transform.scale(pygame.image.load("assets/mom_dad.png"), (450,600))
 #KID LIPS
 lip_size=(30, 30)
 lip_oppened = pygame.transform.scale(pygame.image.load("assets/lip_oppened.png"),lip_size)
@@ -82,12 +100,12 @@ lip_clossed = pygame.transform.scale(pygame.image.load("assets/lip_closed.png"),
 body_size=(kid_size[0]*0.62, 160)
 kid_body = pygame.transform.scale(pygame.image.load("assets/kid_body.png"),body_size )
 # kid = pygame.transform.scale(pygame.image.load("assets/kidblow_clean.png"), (300, 300))
-cat = pygame.transform.scale(pygame.image.load("assets/cat.png"), (100, 100))
+cat = pygame.transform.scale(pygame.image.load("assets/cat.png"), (100, 160))
 
-finger_size = (160, 80)
+finger_size = (480, 80)
 pointing = pygame.transform.scale(pygame.image.load("assets/pointing.png"), finger_size)
 
-background_imagination_surface = pygame.transform.scale(pygame.image.load("assets/background.jpeg"), (const.WIDTH * 1.6, const.HEIGHT * 1.6))
+background_imagination_surface = pygame.transform.scale(pygame.image.load("assets/carnival.jpeg"), (const.WIDTH * 1.6, const.HEIGHT * 1))
 
 game_over_imagination_surface = pygame.transform.scale(pygame.image.load("assets/game_over.jpeg"), (const.WIDTH, const.HEIGHT))
 # Create a transparent surface once
@@ -103,11 +121,10 @@ debug = False
 
 
 
-
 pygame.font.init()  # you have to call this at the start,
 
 # if you want to use this module.
-my_font = pygame.font.SysFont("Comic Sans MS", 30)
+my_font = pygame.font.SysFont("Verdana", 20)
 
 
 mouse_pos=(0,0)
@@ -129,10 +146,18 @@ def blow_air():
     # sound.set_volume(0.6)   # Now plays at 60% (previous value replaced).
     # channel.set_volume(0.5) # Now plays at 30% (0.6 * 0.5).
 def guau_guau():
-    guau= f"assets/guau{(int)(random.random()*4)}.wav"
+    guau= f"assets/guau{(int)(random.random()*4.9)}.wav"
     sound = pygame.mixer.Sound(guau)
     sound.set_volume(0.8+random.random()*0.2)   # Now plays at 90% of full volume.
     channel = sound.play()      # Sound plays at full volume by default
+def meaw():
+    meaw= f"assets/meaw{(int)(random.random()*2)}.wav"
+    sound = pygame.mixer.Sound(meaw)
+    sound.set_volume(1+random.random()*0.2)   # Now plays at 90% of full volume.
+    channel = sound.play()      # Sound plays at full volume by default
+def fuck():
+    return groserias[(int)(random.random()*len(groserias))]
+
 def create_attacker() -> None:
     id = esper.create_entity(Attacker(), Pooled())
 
@@ -156,6 +181,9 @@ def test():
     if not game_started:
         game_started= True
         pygame.time.set_timer(FINGER_ATTACK_EVENT, 1000)
+        pygame.time.set_timer(MEAW_EVENT, 1000)
+        pygame.time.set_timer(FUCK_U_EVENT,1000)
+        pygame.time.set_timer(FUCK_U2_EVENT,1000)
     elif game_over:
         # RESTART GAME
         restart_game()
@@ -185,12 +213,26 @@ def finger_attack(pos: tuple[int, int]):
     esper.add_component(ent, Attacking())
 
 
-def goal_reached():
+def goal_reached(onlyText:bool,amount:int):
     pooled_goals = esper.get_components(Goal, Pooled)
     ent, _ = pooled_goals[0]
     esper.remove_component(ent, Pooled)
-    esper.add_component(ent, Transform(position=(const.WIDTH / 2 + 10, const.HEIGHT / 2 - 10), speed=1))
-    esper.add_component(ent, Goaling())
+    pop_offset=10*(1+random.random()*0.38)
+    if onlyText:
+
+        speed=0.6
+    else:
+        speed=1+random.random()*3
+
+    esper.add_component(ent, Transform(position=(const.WIDTH / 2 + pop_offset, const.HEIGHT / 2 - pop_offset), speed=speed,scale=(0.62+random.random()*0.38)))
+    esper.add_component(ent,
+                        Goaling(
+                         bColor=(155+random.uniform(0,100),155+random.uniform(0,100),155+random.uniform(0,100),128),
+                        onlyText=onlyText,
+                        amount=amount
+
+                        )
+                        )
 
 
 def calculate_angle(opposite, adjacent):
@@ -265,7 +307,7 @@ class AttackersManager(esper.Processor):
             transform.position = (transform.position[0] - (transform.position[0] - (const.WIDTH / 2)) * dt * transform.speed, transform.position[1] - (transform.position[1] - (const.HEIGHT / 2)) * dt * transform.speed)
             blitRotate(transparent_surface, pointing, 
                        transform.position, 
-                       (finger_size[0] / 2, finger_size[1] / 2), 
+                       (finger_size[0]*0.1, finger_size[1] / 2), 
                        calculate_angle(transform.position[0] - (const.WIDTH / 2), transform.position[1] - (const.HEIGHT / 2)) + 110)
             # print("drawing finger")
             if debug:
@@ -285,17 +327,22 @@ class AttackersManager(esper.Processor):
 class GoalsManager(esper.Processor):
     def process(self, clock, dt):
         global radius, game_over
-        for ent, (transform, _) in esper.get_components(Transform, Goaling):
+        for ent, (transform, goaling) in esper.get_components(Transform, Goaling):
             # print(transform.position)
             transform.position = (transform.position[0] + (transform.position[0] - (const.WIDTH / 2)) * dt * transform.speed, transform.position[1] + (transform.position[1] - (const.HEIGHT / 2)) * dt * transform.speed)
 
             distance = ((transform.position[0] - (const.WIDTH / 2)) ** 2 + (transform.position[1] - (const.HEIGHT / 2)) ** 2) ** 0.5
             spice =(math.sin(pygame.time.get_ticks()/100)*0.1+math.sin(pygame.time.get_ticks()/61.8)*0.06)*radius*10
-            pygame.draw.circle(transparent_surface, (100, 100, 200), (transform.position[0]+spice,transform.position[1]), 60, 2)  # (r, g, b) is color, (x, y) is center, R is radius and w is the thickness of the circle border.
-            pygame.draw.circle(transparent_surface, (100, 60, 250, 128), (transform.position[0]+spice,transform.position[1]), 60, 0)
+            if goaling.onlyText:
+                transparent_surface.blit(pygame.transform.scale(my_font.render(f"+{goaling.amount}", False, (0, 0, 0)),(100,60)), (transform.position[0]+spice,transform.position[1]))
+            else:
+                pygame.draw.circle(transparent_surface, goaling.bColor, (transform.position[0]+spice,transform.position[1]), 60*transform.scale, 0)
+                # pygame.draw.circle(transparent_surface, (10, 10, 100), (transform.position[0]+spice,transform.position[1]), 60*transform.scale, 2)  # (r, g, b) is color, (x, y) is center, R is radius and w is the thickness of the circle border.
+                bubble_scale=120*transform.scale
+                transparent_surface.blit(pygame.transform.scale(bubble,pygame.math.Vector2(1,1)*bubble_scale),(transform.position[0]+spice-bubble_scale/2,transform.position[1]-bubble_scale/2))
             # print("agent distance")
             # print(distance)
-            if distance > 200:
+            if distance > 300:
                 poolGoal(ent)
 
 
@@ -350,13 +397,16 @@ def main():
     # spawn_finger((100,100))
     for i in range(100):
         create_attacker()
-    for i in range(5):
+    for i in range(1000):
         create_goal()
     create_button()
+    fu0= fuck()
+    fu1= fuck()
     lip_time=-1
     blow_multiply=1
     head_rotation=0
     actual_head_rotation=0
+    dog_pos =(const.WIDTH+200,const.HEIGHT+200)
 
     # spawn_finger(generate_random_point_in_circle(const.WIDTH,const.HEIGHT,100))
     while True:
@@ -367,6 +417,17 @@ def main():
 
             if event.type == pygame.QUIT:
                 return
+            elif event.type == DOGO_EVENT:
+                dog_pos =(const.WIDTH+200,const.HEIGHT+200)
+                pygame.time.set_timer(DOGO_EVENT, 0)
+            elif event.type == FUCK_U_EVENT:
+                pygame.time.set_timer(FUCK_U_EVENT, 0)
+                fu0= fuck()
+                pygame.time.set_timer(FUCK_U_EVENT, (int)((1000 + random.random() * 1000)))
+            elif event.type == FUCK_U2_EVENT:
+                pygame.time.set_timer(FUCK_U2_EVENT, 0)
+                fu1= fuck()
+                pygame.time.set_timer(FUCK_U2_EVENT, (int)((1000 + random.random() * 1000)))
             elif event.type == FINGER_ATTACK_EVENT:
 
                 print("FINGER_ATTACK_EVENT")
@@ -374,6 +435,11 @@ def main():
                 finger_attack(generate_random_point_in_circle(const.WIDTH / 2, const.HEIGHT / 2, 300))
                 pygame.time.set_timer(FINGER_ATTACK_EVENT, (int)((3000 / (bubble_points + 1)) + random.random() * 2000))
                 pass
+            elif event.type==MEAW_EVENT:
+
+                pygame.time.set_timer(MEAW_EVENT, 0)
+                meaw()
+                pygame.time.set_timer(MEAW_EVENT, (int)((5000 + random.random() * 5000)))
             elif event.type==pygame.MOUSEMOTION:
                 mouse_pos = event.pos
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -390,23 +456,32 @@ def main():
                         radius += 5
                         bubble_decrease_speed = 10
                         lip=lip_oppened
-                        head_rotation=-15
+                        head_rotation=-20
                         blow_multiply=1
                         lip_time =pygame.time.get_ticks()
                         if radius > 100:
-                            bubble_points += 1
+                            magic =abs(bubble_start_time-lip_time)
+                            print(f"MAGIC: {magic}")
                             print("GOAL!!!!")
                             bubble_pop()
                             radius = 0
                             bubble_decrease_speed = 60
-                            goal_reached()
+                            amount=(int)(10000/magic)**4+2
+                            for i in range(amount):
+                                # print(f"bubbles_amount: {10000/magic}")
+                                bubble_points += 1
+
+                                goal_reached(i==(amount-1),amount)
                     for ent, (transform, _) in esper.get_components(Transform, Attacking):
 
                         finger_distance = ((mouse_x - transform.position[0]) ** 2 + (mouse_y - transform.position[1]) ** 2) ** 0.5
                         if finger_distance < 70:
                             guau_guau()
+                            # meaw()
                             enemies_points += 1
                             poolAttacker(ent)
+                            dog_pos=(mouse_pos[0]-75,const.HEIGHT-200)
+                            pygame.time.set_timer(DOGO_EVENT, 500)
                             print("finger cicked YAYYY :)")
 
         dt = clock.tick(60) / 1000
@@ -422,12 +497,14 @@ def main():
     # IMAGINATION IMAGINATION IMAGINATION
 
             if lip_time>0 and (pygame.time.get_ticks()-lip_time)>1000:
-                head_rotation=15
+                head_rotation=20
                 lip=lip_clossed
                 lip_multiply=0.1
-            actual_radius = pygame.math.lerp(actual_radius, radius, dt * 0.6)
-            imagination_surface.blit(background_imagination_surface, (-actual_radius * 0.32, 0))
+            actual_radius = pygame.math.lerp(actual_radius, radius, dt * 0.5)
+            imagination_surface.blit(background_imagination_surface, (-actual_radius * 0.32, -100))
             mod_radius=actual_radius+(math.sin(pygame.time.get_ticks()/100)*0.1+math.sin(pygame.time.get_ticks()/61.8)*0.06)*radius*blow_multiply
+            if(mod_radius<0):
+                mod_radius=0
 # here grass
             imagination_surface.blit(grass, (-mod_radius,const.HEIGHT-150))
             # pygame.draw.rect(imagination_surface, (55, 155, 55), (0, 345, const.WIDTH, const.HEIGHT - 300))
@@ -457,18 +534,27 @@ def main():
             # kid_surface.blit(kid_head_surface, (kid_size[0]*0,0))
             # kid_surface.blit(lip_clossed, ((const.WIDTH / 2) - 265 - actual_radius, (const.HEIGHT / 2) - 160))
             imagination_surface.blit(kid_surface, ((const.WIDTH / 2) - 230 - mod_radius, (const.HEIGHT / 2) - 180))
-            imagination_surface.blit(cat, ((const.WIDTH) - 290 - mod_radius, (const.HEIGHT) - 160))
+            imagination_surface.blit(cat, ((const.WIDTH) - 260 - mod_radius, (const.HEIGHT) - 220))
+            imagination_surface.blit(mom_dad, ((const.WIDTH)/2 - mod_radius, -110 ))
 
+            imagination_surface.blit(groseria, (const.WIDTH-215-mod_radius, -10))
+            imagination_surface.blit(my_font.render(f"{fu0}", False, (200, 0, 0)), (const.WIDTH-200-mod_radius, 15))
+            imagination_surface.blit(groseria, (const.WIDTH-425-mod_radius, -10))
+            imagination_surface.blit(my_font.render(f"{fu1}", False, (200, 0, 0)), (const.WIDTH-400-mod_radius, 15))
             imagination_surface.blit(pygame.transform.flip(grass,True,False), (-mod_radius,const.HEIGHT-115))
-            pygame.draw.circle(imagination_surface, (100, 100, 200), ((const.WIDTH / 2), (const.HEIGHT / 2)), mod_radius, 2)  # (r, g, b) is color, (x, y) is center, R is radius and w is the thickness of the circle border.
+            # pygame.draw.circle(imagination_surface, (100, 100, 200), ((const.WIDTH / 2), (const.HEIGHT / 2)), mod_radius, 2)  # (r, g, b) is color, (x, y) is center, R is radius and w is the thickness of the circle border.
             pygame.draw.circle(transparent_surface, (100, 100, 250, 128), ((const.WIDTH / 2), (const.HEIGHT / 2)), mod_radius, 0)
+            transparent_surface.blit(pygame.transform.scale(bubble,pygame.math.Vector2(1,1)*mod_radius*2),pygame.math.Vector2((const.WIDTH / 2), (const.HEIGHT / 2))-pygame.math.Vector2(1,1)*mod_radius)
 
+            imagination_surface.blit(pygame.transform.flip(dogo,True,False), dog_pos)
             if radius >= 0:
                 radius -= bubble_decrease_speed * dt
                 hurry_time=-1
             else:
                 radius = 0
+                bubble_start_time=pygame.time.get_ticks()
                 hurry_time=pygame.time.get_ticks()
+                
                 print("HURRYYYYYYYYYY!")
             tutorial()
             imagination_surface.blit(transparent_surface, (0, 0))
@@ -477,7 +563,7 @@ def main():
             # imagination_surface.fill((255, 0, 0))
             imagination_surface.blit(game_over_imagination_surface, (0, 0))
             # print("the game is over!")
-        imagination_surface.blit(my_font.render(f"🫧 {bubble_points} 👇 {enemies_points}", False, (0, 0, 0)), (0, 0))
+        imagination_surface.blit(my_font.render(f"🫧 U+1FAE7{bubble_points} 👇 {enemies_points}", False, (0, 0, 0)), (0, 0))
         if not game_started:
 
     # SPLASH SPLASH SPLASH
@@ -491,6 +577,7 @@ def main():
                 splash_surface.blit(splash_txt,(0,0))
                 # splash_surface.blit(splash_txt,-pygame.math.Vector2(const.WIDTH,const.HEIGHT)+pygame.math.Vector2(mouse_diff)*-0.05)
                 splash_surface.blit(splash_fg, -pygame.math.Vector2(const.WIDTH*0.15,const.HEIGHT*0.15)+pygame.math.Vector2(mouse_diff)*0.1)
+
                 screen.blit(splash_surface, (0, 0))
         # if (not game_started) or game_over:
 
